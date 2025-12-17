@@ -7,13 +7,7 @@ from pathlib import Path
 from PIL import Image
 from typing import Dict, Optional
 import numpy as np
-import signal
 import os
-
-
-class TimeoutError(Exception):
-    """Raised when analysis times out."""
-    pass
 
 
 class FileHasher:
@@ -60,113 +54,87 @@ class ImageAnalyzer:
                 'resolution': f"{img.width}x{img.height}",
                 'hash': str(phash)  # Use phash as primary
             }
-        except Exception as e:
+        except Exception:
             return None
     
     def compare(self, hash1: Dict, hash2: Dict, threshold: int) -> bool:
-        """Compare two image hashes.
-        
-        Args:
-            hash1: First image hash dictionary
-            hash2: Second image hash dictionary
-            threshold: Similarity threshold (0-100)
-            
-        Returns:
-            True if images are similar enough
-        """
+        """Compare two image hashes."""
         try:
-            # Calculate hamming distance for each hash type
             distances = [
                 hash1['ahash'] - hash2['ahash'],
                 hash1['dhash'] - hash2['dhash'],
                 hash1['phash'] - hash2['phash'],
                 hash1['whash'] - hash2['whash']
             ]
-            
-            # Average distance
             avg_distance = sum(distances) / len(distances)
-            
-            # Convert to similarity percentage (lower distance = higher similarity)
-            # Max distance is 64 bits for these hash types
             similarity = (1 - (avg_distance / 64)) * 100
-            
             return similarity >= threshold
         except Exception:
             return False
 
 
 class VideoAnalyzer:
-    """Video analyzer for content-based comparison."""
+    """Video analyzer for content-based comparison with hard timeouts."""
     
-    def __init__(self, threshold: int = 90, timeout_seconds: int = 10):
+    def __init__(self, threshold: int = 90, max_seconds_per_video: float = 3.0):
         self.threshold = threshold
-        self.sample_frames = 10  # Number of frames to sample
-        self.timeout_seconds = timeout_seconds
+        self.sample_frames = 8  # fewer samples = faster, less chance to hang
+        self.max_seconds_per_video = max_seconds_per_video
     
     def analyze(self, file_path: str) -> Optional[Dict]:
-        """Analyze video and create content signature with timeout protection."""
+        """Analyze video and create content signature.
+        
+        Hard-caps processing time per video so a single bad file cannot stall the scan.
+        """
+        start_time = cv2.getTickCount()
+        tick_freq = cv2.getTickFrequency() or 1.0
+        
         try:
-            # Quick file size check - skip if corrupted or too large
+            # Quick file size sanity check
             file_size = os.path.getsize(file_path)
-            if file_size < 1024:  # Less than 1KB, likely corrupted
+            if file_size < 1024:  # < 1KB
                 return None
             
             cap = cv2.VideoCapture(file_path)
-            
             if not cap.isOpened():
                 return None
             
-            # Get video properties with timeout protection
-            try:
-                fps = cap.get(cv2.CAP_PROP_FPS)
-                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            except Exception:
-                cap.release()
-                return None
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
-            # Validate properties
             if fps <= 0 or frame_count <= 0 or width <= 0 or height <= 0:
                 cap.release()
                 return None
             
             duration = frame_count / fps if fps > 0 else 0
-            
-            # Sample fewer frames for very long videos or if fps is weird
-            sample_count = min(self.sample_frames, max(3, frame_count // 10))
-            
-            # Sample frames evenly throughout video
+            sample_count = min(self.sample_frames, max(3, frame_count // 20))
             frame_indices = np.linspace(0, max(0, frame_count - 1), sample_count, dtype=int)
             frame_hashes = []
             
-            successful_reads = 0
             for idx in frame_indices:
+                # Time guard: bail out if this video is taking too long
+                elapsed = (cv2.getTickCount() - start_time) / tick_freq
+                if elapsed > self.max_seconds_per_video:
+                    cap.release()
+                    return None
+                
                 try:
                     cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
                     ret, frame = cap.read()
+                    if not ret or frame is None:
+                        continue
                     
-                    if ret and frame is not None:
-                        # Convert to grayscale and resize for consistent comparison
-                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                        resized = cv2.resize(gray, (16, 16))
-                        
-                        # Calculate hash of frame
-                        frame_hash = hashlib.md5(resized.tobytes()).hexdigest()
-                        frame_hashes.append(frame_hash)
-                        successful_reads += 1
-                    
-                    # If we can't read enough frames, skip this video
-                    if len(frame_hashes) == 0 and successful_reads == 0 and idx > frame_count // 2:
-                        cap.release()
-                        return None
-                        
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    resized = cv2.resize(gray, (16, 16))
+                    frame_hash = hashlib.md5(resized.tobytes()).hexdigest()
+                    frame_hashes.append(frame_hash)
                 except Exception:
                     continue
             
             cap.release()
             
-            # Need at least a few frames to be valid
             if len(frame_hashes) < 2:
                 return None
             
@@ -177,41 +145,26 @@ class VideoAnalyzer:
                 'fps': fps,
                 'frame_count': frame_count
             }
-        except Exception as e:
-            # Silently skip problematic videos
+        except Exception:
             return None
     
     def compare(self, sig1: Dict, sig2: Dict, threshold: int) -> bool:
-        """Compare two video signatures.
-        
-        Args:
-            sig1: First video signature
-            sig2: Second video signature
-            threshold: Similarity threshold (0-100)
-            
-        Returns:
-            True if videos are similar enough
-        """
+        """Compare two video signatures."""
         try:
-            # Compare frame hashes
             hashes1 = sig1.get('frame_hashes', [])
             hashes2 = sig2.get('frame_hashes', [])
-            
             if not hashes1 or not hashes2:
                 return False
             
-            # Calculate percentage of matching frames
             matches = sum(1 for h1, h2 in zip(hashes1, hashes2) if h1 == h2)
             similarity = (matches / min(len(hashes1), len(hashes2))) * 100
             
-            # Also check if durations are similar (within 5%)
             duration1 = sig1.get('duration', 0)
             duration2 = sig2.get('duration', 0)
-            
             if duration1 > 0 and duration2 > 0:
                 duration_diff = abs(duration1 - duration2) / max(duration1, duration2)
-                if duration_diff > 0.05:  # More than 5% difference
-                    similarity *= 0.8  # Reduce similarity score
+                if duration_diff > 0.05:
+                    similarity *= 0.8
             
             return similarity >= threshold
         except Exception:
