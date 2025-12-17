@@ -1,6 +1,7 @@
 """Main application window."""
 
 import os
+import psutil
 from pathlib import Path
 from datetime import datetime
 from PyQt6.QtWidgets import (
@@ -63,6 +64,10 @@ class MainWindow(QMainWindow):
         self.deletion_manager = DeletionManager(self.config)
         self.current_duplicates = []
         self.start_time = None
+        
+        # Get system memory
+        self.total_ram_mb = int(psutil.virtual_memory().total / (1024 * 1024))
+        self.available_ram_mb = int(psutil.virtual_memory().available / (1024 * 1024))
         
         self.init_ui()
         self.setup_timer()
@@ -175,18 +180,29 @@ class MainWindow(QMainWindow):
         resources_box = QGroupBox("Performance")
         form = QFormLayout()
         
+        # CPU threads
+        cpu_count = psutil.cpu_count(logical=True) or 4
         self.thread_spin = QSpinBox()
-        self.thread_spin.setRange(1, 32)
-        self.thread_spin.setValue(self.config.get('thread_count', 4))
-        self.thread_spin.setToolTip("How many CPU threads to use while scanning.")
+        self.thread_spin.setRange(1, cpu_count)
+        self.thread_spin.setValue(min(self.config.get('thread_count', 4), cpu_count))
+        self.thread_spin.setToolTip(f"How many CPU threads to use while scanning. Your system has {cpu_count} logical cores.")
         form.addRow("CPU threads:", self.thread_spin)
         
+        # RAM slider - use actual system memory
+        saved_ram = self.config.get('max_memory_mb', 2048)
+        # Clamp saved value to available range
+        default_ram = min(saved_ram, self.available_ram_mb)
+        
         self.ram_slider = QSlider(Qt.Orientation.Horizontal)
-        self.ram_slider.setRange(256, 16384)
+        self.ram_slider.setRange(256, self.total_ram_mb)
         self.ram_slider.setSingleStep(256)
         self.ram_slider.setPageStep(512)
-        self.ram_slider.setValue(self.config.get('max_memory_mb', 2048))
-        self.ram_slider.setToolTip("Maximum RAM in MB the scanner is allowed to target.")
+        self.ram_slider.setValue(default_ram)
+        self.ram_slider.setToolTip(
+            f"Maximum RAM in MB the scanner is allowed to use.\n"
+            f"Total system RAM: {self.total_ram_mb} MB\n"
+            f"Currently available: {self.available_ram_mb} MB"
+        )
         
         self.ram_label = QLabel()
         self.update_ram_label(self.ram_slider.value())
@@ -199,6 +215,14 @@ class MainWindow(QMainWindow):
         ram_container.setLayout(ram_layout)
         form.addRow("RAM limit:", ram_container)
         
+        # System info label
+        system_info = QLabel(
+            f"System: {self.total_ram_mb:,} MB total, {self.available_ram_mb:,} MB available"
+        )
+        system_info.setObjectName("hintLabel")
+        form.addRow("", system_info)
+        
+        # Similarity threshold
         self.threshold_spin = QSpinBox()
         self.threshold_spin.setRange(50, 100)
         self.threshold_spin.setValue(self.config.get('similarity_threshold', 90))
@@ -222,7 +246,9 @@ class MainWindow(QMainWindow):
         return group
     
     def update_ram_label(self, value: int):
-        self.ram_label.setText(f"{value} MB")
+        """Update RAM label with current slider value and percentage."""
+        percentage = (value / self.total_ram_mb) * 100
+        self.ram_label.setText(f"{value:,} MB ({percentage:.0f}%)")
     
     def create_control_buttons(self):
         layout = QHBoxLayout()
