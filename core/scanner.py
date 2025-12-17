@@ -91,7 +91,7 @@ class DuplicateScanner:
                     file_hash = future.result()
                     if file_hash:
                         self.file_hashes[file_path] = file_hash
-                except Exception as e:
+                except Exception:
                     pass
                 
                 if self.progress_callback:
@@ -108,6 +108,9 @@ class DuplicateScanner:
     def _analyze_images(self, thread_count: int, total_files: int):
         """Analyze images for perceptual hashes."""
         image_files = [f for f in self.files if Path(f).suffix.lower() in self.SUPPORTED_IMAGE_FORMATS]
+        
+        if not image_files:
+            return
         
         with ThreadPoolExecutor(max_workers=thread_count) as executor:
             futures = {executor.submit(self._analyze_image, f): f for f in image_files}
@@ -126,8 +129,10 @@ class DuplicateScanner:
                     pass
                 
                 if self.progress_callback:
-                    progress = 33 + int((i + 1) / len(image_files) * 33)
-                    self.progress_callback(progress, file_path, i + 1, len(image_files))
+                    # Report using overall file count for consistent progress
+                    overall_progress = 33 + int((i + 1) / len(image_files) * 33)
+                    current_in_total = int((i + 1) / len(image_files) * total_files)
+                    self.progress_callback(overall_progress, file_path, current_in_total, total_files)
     
     def _analyze_image(self, file_path: str) -> Optional[Dict]:
         """Analyze a single image."""
@@ -139,6 +144,9 @@ class DuplicateScanner:
     def _analyze_videos(self, thread_count: int, total_files: int):
         """Analyze videos for signatures."""
         video_files = [f for f in self.files if Path(f).suffix.lower() in self.SUPPORTED_VIDEO_FORMATS]
+        
+        if not video_files:
+            return
         
         with ThreadPoolExecutor(max_workers=thread_count) as executor:
             futures = {executor.submit(self._analyze_video, f): f for f in video_files}
@@ -157,8 +165,10 @@ class DuplicateScanner:
                     pass
                 
                 if self.progress_callback:
-                    progress = 66 + int((i + 1) / len(video_files) * 34)
-                    self.progress_callback(progress, file_path, i + 1, len(video_files))
+                    # Report using overall file count
+                    overall_progress = 66 + int((i + 1) / len(video_files) * 34)
+                    current_in_total = int((i + 1) / len(video_files) * total_files)
+                    self.progress_callback(overall_progress, file_path, current_in_total, total_files)
     
     def _analyze_video(self, file_path: str) -> Optional[Dict]:
         """Analyze a single video."""
@@ -255,7 +265,6 @@ class DuplicateScanner:
         if not groups:
             return []
         
-        # Simple deduplication - remove groups with overlapping files
         seen_files = set()
         unique_groups = []
         

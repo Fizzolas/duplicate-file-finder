@@ -71,11 +71,10 @@ class MainWindow(QMainWindow):
         self.start_time = None
         self.files_processed = 0
         self.total_files = 0
-        self.last_progress_update = None
         
-        # Smoothed ETA tracking
-        self.last_eta_update = None
-        self.last_eta_files_processed = 0
+        # Simple ETA tracking
+        self.last_eta_calc = None
+        self.last_file_count = 0
         
         # Get system memory
         self.total_ram_mb = int(psutil.virtual_memory().total / (1024 * 1024))
@@ -412,9 +411,8 @@ class MainWindow(QMainWindow):
         self.start_time = datetime.now()
         self.files_processed = 0
         self.total_files = 0
-        self.last_progress_update = datetime.now()
-        self.last_eta_update = None
-        self.last_eta_files_processed = 0
+        self.last_eta_calc = None
+        self.last_file_count = 0
         self.timer.start(500)
         
         self.scanner_thread = ScannerThread(folders, options)
@@ -447,7 +445,7 @@ class MainWindow(QMainWindow):
         self.showMinimized()
     
     def update_progress(self, percent, current_file, current_count, total_count):
-        """Update progress bar, status, and ETA with stable smoothing."""
+        """Update progress bar, status, and ETA."""
         self.progress_bar.setValue(percent)
         self.files_processed = current_count
         self.total_files = total_count
@@ -455,36 +453,37 @@ class MainWindow(QMainWindow):
         file_name = Path(current_file).name
         self.status_label.setText(f"Scanning: {file_name} ({current_count}/{total_count})")
         
-        # Only recompute ETA once per second to avoid flicker
+        # Calculate ETA every 2 seconds
         now = datetime.now()
-        if self.last_eta_update is None:
-            self.last_eta_update = now
-            self.last_eta_files_processed = current_count
+        if self.last_eta_calc is None:
+            self.last_eta_calc = now
+            self.last_file_count = current_count
             return
         
-        delta_t = (now - self.last_eta_update).total_seconds()
-        delta_files = current_count - self.last_eta_files_processed
+        time_since_last = (now - self.last_eta_calc).total_seconds()
         
-        # Update ETA only if at least 1 second has passed and files progressed
-        if delta_t >= 1.0 and delta_files > 0:
-            rate = delta_files / delta_t  # files per second
-            remaining_files = max(0, total_count - current_count)
-            eta_seconds = remaining_files / rate if rate > 0 else 0
+        if time_since_last >= 2.0:  # Update every 2 seconds
+            files_since_last = current_count - self.last_file_count
             
-            if eta_seconds <= 0:
-                self.eta_label.setText("ETA: --")
-            elif eta_seconds < 60:
-                self.eta_label.setText(f"ETA: {int(eta_seconds)}s")
-            elif eta_seconds < 3600:
-                self.eta_label.setText(f"ETA: {int(eta_seconds/60)}m {int(eta_seconds%60)}s")
+            if files_since_last > 0:
+                rate = files_since_last / time_since_last
+                remaining = total_count - current_count
+                eta_seconds = remaining / rate if rate > 0 else 0
+                
+                if eta_seconds < 60:
+                    self.eta_label.setText(f"ETA: {int(eta_seconds)}s")
+                elif eta_seconds < 3600:
+                    self.eta_label.setText(f"ETA: {int(eta_seconds/60)}m {int(eta_seconds%60)}s")
+                else:
+                    hrs = int(eta_seconds/3600)
+                    mins = int((eta_seconds%3600)/60)
+                    self.eta_label.setText(f"ETA: {hrs}h {mins}m")
             else:
-                hours = int(eta_seconds/3600)
-                minutes = int((eta_seconds%3600)/60)
-                self.eta_label.setText(f"ETA: {hours}h {minutes}m")
+                # No progress in 2 seconds - show processing status
+                self.eta_label.setText("Processing...")
             
-            # Update window for next interval
-            self.last_eta_update = now
-            self.last_eta_files_processed = current_count
+            self.last_eta_calc = now
+            self.last_file_count = current_count
     
     def update_elapsed_time(self):
         """Update elapsed time display periodically."""
