@@ -1,0 +1,2 @@
+# Additional dependencies for building
+pyinstaller>=6.0.0
