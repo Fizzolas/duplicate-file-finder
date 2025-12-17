@@ -10,16 +10,17 @@ QWidget {
     background-color: #18181b;
     color: #e5e5e5;
     font-family: 'Segoe UI', Arial, sans-serif;
-    font-size: 10pt;
+    font-size: 9pt;
 }
 
-#headerLabel {
+#compactHeaderLabel {
     font-size: 10pt;
     color: #c4c4c4;
+    font-weight: 600;
 }
 
 #hintLabel {
-    font-size: 9pt;
+    font-size: 8pt;
     color: #a1a1aa;
 }
 
@@ -38,9 +39,10 @@ QPushButton {
     background-color: #27272f;
     color: #e5e5e5;
     border: 1px solid #3f3f46;
-    padding: 8px 16px;
+    padding: 6px 12px;
     border-radius: 4px;
-    min-width: 90px;
+    min-width: 70px;
+    font-size: 9pt;
 }
 
 QPushButton:hover {
@@ -77,6 +79,7 @@ QPushButton#deleteButton:hover {
 
 QPushButton#applyButton {
     background-color: #1d4ed8;
+    font-weight: 600;
 }
 
 QPushButton#applyButton:hover {
@@ -86,8 +89,8 @@ QPushButton#applyButton:hover {
 QPushButton#showInFolderButton {
     background-color: #374151;
     border: 1px solid #4b5563;
-    padding: 4px 12px;
-    font-size: 9pt;
+    padding: 3px 10px;
+    font-size: 8pt;
     min-width: 100px;
 }
 
@@ -98,27 +101,29 @@ QPushButton#showInFolderButton:hover {
 
 QGroupBox {
     border: 1px solid #27272f;
-    border-radius: 6px;
-    margin-top: 14px;
-    padding-top: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    padding-top: 8px;
     font-weight: 600;
+    font-size: 9pt;
 }
 
 QGroupBox::title {
     subcontrol-origin: margin;
-    left: 12px;
-    padding: 0 6px;
+    left: 10px;
+    padding: 0 4px;
 }
 
 QListWidget {
     background-color: #111827;
     border: 1px solid #27272f;
     border-radius: 4px;
-    padding: 4px;
+    padding: 3px;
+    font-size: 8pt;
 }
 
 QListWidget::item {
-    padding: 4px;
+    padding: 3px;
     border-radius: 2px;
 }
 
@@ -135,10 +140,11 @@ QTableWidget {
     alternate-background-color: #020617;
     border: 1px solid #111827;
     gridline-color: #1f2937;
+    font-size: 8pt;
 }
 
 QTableWidget::item {
-    padding: 4px;
+    padding: 3px;
 }
 
 QTableWidget::item:selected {
@@ -152,9 +158,10 @@ QTableWidget::item:hover {
 QHeaderView::section {
     background-color: #020617;
     color: #e5e5e5;
-    padding: 6px;
+    padding: 5px;
     border: 1px solid #111827;
     font-weight: 600;
+    font-size: 8pt;
 }
 
 QProgressBar {
@@ -162,7 +169,8 @@ QProgressBar {
     border-radius: 4px;
     text-align: center;
     background-color: #020617;
-    height: 24px;
+    height: 20px;
+    font-size: 8pt;
 }
 
 QProgressBar::chunk {
@@ -171,14 +179,15 @@ QProgressBar::chunk {
 }
 
 QCheckBox {
-    spacing: 8px;
+    spacing: 6px;
+    font-size: 9pt;
 }
 
 QCheckBox::indicator {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     border: 1px solid #4b5563;
-    border-radius: 4px;
+    border-radius: 3px;
     background-color: #020617;
 }
 
@@ -195,14 +204,15 @@ QSpinBox, QSlider::groove:horizontal {
     background-color: #020617;
     border: 1px solid #27272f;
     border-radius: 4px;
-    height: 22px;
+    height: 20px;
+    font-size: 9pt;
 }
 
 QSlider::handle:horizontal {
     background-color: #22c55e;
-    width: 14px;
-    border-radius: 7px;
-    margin: -4px 0;
+    width: 12px;
+    border-radius: 6px;
+    margin: -3px 0;
 }
 
 QSlider::groove:horizontal:hover {
@@ -210,8 +220,8 @@ QSlider::groove:horizontal:hover {
 }
 
 QSpinBox {
-    padding: 4px;
-    min-width: 80px;
+    padding: 3px;
+    min-width: 70px;
 }
 
 QSpinBox:hover {
@@ -221,7 +231,7 @@ QSpinBox:hover {
 QSpinBox::up-button, QSpinBox::down-button {
     background-color: #111827;
     border: 1px solid #1f2937;
-    width: 16px;
+    width: 14px;
 }
 
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
@@ -233,11 +243,23 @@ QLabel {
 }
 
 QSplitter::handle {
-    background-color: #111827;
-    width: 2px;
+    background-color: #27272f;
+    height: 4px;
 }
 
 QSplitter::handle:hover {
     background-color: #38bdf8;
+}
+
+QSplitter::handle:vertical {
+    height: 4px;
+}
+
+QSplitter::handle:horizontal {
+    width: 4px;
+}
+
+QFormLabel {
+    font-size: 9pt;
 }
 """
