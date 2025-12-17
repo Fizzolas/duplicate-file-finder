@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QAbstractItemView, QSplitter, QSlider, QFormLayout
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QDesktopServices, QUrl
 
 from core.scanner import DuplicateScanner
 from core.deletion import DeletionManager
@@ -84,7 +85,7 @@ class MainWindow(QMainWindow):
         
         # Header / description
         header_box = QGroupBox("Quick Tips")
-        header_layout = QHBoxLayout()
+        header_layout = QVBoxLayout()
         header_label = QLabel(
             "1) Add one or more folders on the left.  "
             "2) Adjust scan behavior on the right.  "
@@ -92,6 +93,20 @@ class MainWindow(QMainWindow):
         )
         header_label.setObjectName("headerLabel")
         header_layout.addWidget(header_label)
+        
+        # Backup location info
+        backup_dir = self.config.get('backup_directory')
+        backup_info = QLabel(f"Backups are saved to: {backup_dir}")
+        backup_info.setObjectName("hintLabel")
+        backup_info.setWordWrap(True)
+        header_layout.addWidget(backup_info)
+        
+        # Open backups folder button
+        open_backups_btn = QPushButton("Open Backups Folder")
+        open_backups_btn.setMaximumWidth(150)
+        open_backups_btn.clicked.connect(self.open_backups_folder)
+        header_layout.addWidget(open_backups_btn)
+        
         header_box.setLayout(header_layout)
         main_layout.addWidget(header_box)
         
@@ -124,6 +139,17 @@ class MainWindow(QMainWindow):
         
         deletion_layout = self.create_deletion_buttons()
         main_layout.addLayout(deletion_layout)
+    
+    def open_backups_folder(self):
+        """Open the backups folder in file explorer."""
+        backup_dir = self.config.get('backup_directory')
+        if backup_dir and os.path.exists(backup_dir):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(backup_dir))
+        else:
+            QMessageBox.information(
+                self, "Backups Folder",
+                f"Backup folder will be created at:\n{backup_dir}\n\nIt will appear after your first deletion."
+            )
     
     def create_folder_panel(self):
         group = QGroupBox("1. Choose folders")
