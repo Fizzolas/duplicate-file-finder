@@ -11,8 +11,8 @@ from PyQt6.QtWidgets import (
     QCheckBox, QSpinBox, QGroupBox, QMessageBox, QHeaderView,
     QAbstractItemView, QSplitter, QSlider, QFormLayout
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QDesktopServices, QUrl
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
+from PyQt6.QtGui import QDesktopServices
 
 from core.scanner import DuplicateScanner
 from core.deletion import DeletionManager
