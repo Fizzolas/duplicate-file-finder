@@ -11,9 +11,10 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QProgressBar, QTableWidget,
     QTableWidgetItem, QFileDialog, QListWidget, QTabWidget,
     QCheckBox, QSpinBox, QGroupBox, QMessageBox, QHeaderView,
-    QAbstractItemView, QSplitter, QSlider, QFormLayout, QStyledItemDelegate
+    QAbstractItemView, QSplitter, QSlider, QFormLayout, QStyledItemDelegate,
+    QSizePolicy
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QPropertyAnimation, QEasingCurve, QUrl
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QPropertyAnimation, QEasingCurve, QUrl, QSize
 from PyQt6.QtGui import QDesktopServices, QCursor
 
 from core.scanner import DuplicateScanner
@@ -57,14 +58,6 @@ class ScannerThread(QThread):
             self.scanner.stop()
 
 
-class TableButtonDelegate(QStyledItemDelegate):
-    """Custom delegate to show buttons on hover in table."""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.hovered_row = -1
-
-
 class MainWindow(QMainWindow):
     """Main application window."""
     
@@ -89,79 +82,110 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle("Duplicate File Finder")
-        self.setGeometry(100, 100, 1250, 850)
+        self.setMinimumSize(900, 600)
+        self.resize(1200, 800)
         self.setStyleSheet(APP_STYLESHEET)
         
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Header / description
-        header_box = QGroupBox("Quick Tips")
-        header_layout = QVBoxLayout()
-        header_label = QLabel(
-            "1) Add one or more folders on the left.  "
-            "2) Adjust scan behavior on the right.  "
-            "3) Click 'Apply Settings' then 'Start Scan'."
-        )
-        header_label.setObjectName("headerLabel")
+        # Compact header
+        header_layout = QHBoxLayout()
+        header_label = QLabel("1) Add folders  •  2) Configure settings  •  3) Apply & Scan")
+        header_label.setObjectName("compactHeaderLabel")
         header_layout.addWidget(header_label)
         
-        # Backup location info
-        backup_dir = self.config.get('backup_directory')
-        backup_info = QLabel(f"Backups are saved to: {backup_dir}")
-        backup_info.setObjectName("hintLabel")
-        backup_info.setWordWrap(True)
-        header_layout.addWidget(backup_info)
-        
-        # Open backups folder button
-        open_backups_btn = QPushButton("Open Backups Folder")
-        open_backups_btn.setMaximumWidth(150)
+        open_backups_btn = QPushButton("Backups Folder")
+        open_backups_btn.setMaximumWidth(120)
+        open_backups_btn.setToolTip(f"Open: {self.config.get('backup_directory')}")
         open_backups_btn.clicked.connect(self.open_backups_folder)
         header_layout.addWidget(open_backups_btn)
         
-        header_box.setLayout(header_layout)
-        main_layout.addWidget(header_box)
+        main_layout.addLayout(header_layout)
         
-        # Top section: Folder selection and options
-        top_splitter = QSplitter(Qt.Orientation.Horizontal)
+        # Main vertical splitter: top section vs results
+        main_splitter = QSplitter(Qt.Orientation.Vertical)
+        
+        # Top section widget
+        top_widget = QWidget()
+        top_layout = QVBoxLayout(top_widget)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(6)
+        
+        # Folders and options in horizontal splitter
+        config_splitter = QSplitter(Qt.Orientation.Horizontal)
         
         folder_panel = self.create_folder_panel()
-        top_splitter.addWidget(folder_panel)
+        config_splitter.addWidget(folder_panel)
         
         options_panel = self.create_options_panel()
-        top_splitter.addWidget(options_panel)
+        config_splitter.addWidget(options_panel)
         
-        top_splitter.setStretchFactor(0, 1)
-        top_splitter.setStretchFactor(1, 1)
-        main_layout.addWidget(top_splitter)
+        config_splitter.setStretchFactor(0, 1)
+        config_splitter.setStretchFactor(1, 1)
+        top_layout.addWidget(config_splitter)
         
+        # Control buttons
         control_layout = self.create_control_buttons()
-        main_layout.addLayout(control_layout)
+        top_layout.addLayout(control_layout)
         
+        # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(True)
-        main_layout.addWidget(self.progress_bar)
+        self.progress_bar.setMaximumHeight(22)
+        top_layout.addWidget(self.progress_bar)
         
-        # Status and ETA layout
+        # Status and ETA
         status_layout = QHBoxLayout()
-        
         self.status_label = QLabel("Ready to scan")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label, 1)
         
         self.eta_label = QLabel("")
-        self.eta_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.eta_label.setObjectName("etaLabel")
         status_layout.addWidget(self.eta_label)
+        top_layout.addLayout(status_layout)
         
-        main_layout.addLayout(status_layout)
+        main_splitter.addWidget(top_widget)
         
-        self.create_results_section(main_layout)
+        # Bottom section: Results table
+        results_widget = QWidget()
+        results_layout = QVBoxLayout(results_widget)
+        results_layout.setContentsMargins(0, 0, 0, 0)
+        results_layout.setSpacing(4)
         
+        results_hint = QLabel("Results (hover over rows to reveal actions)")
+        results_hint.setObjectName("hintLabel")
+        results_layout.addWidget(results_hint)
+        
+        self.results_table = QTableWidget()
+        self.results_table.setColumnCount(8)
+        self.results_table.setHorizontalHeaderLabels([
+            "Group", "File Path", "Size (MB)", "Resolution",
+            "Format", "Hash", "Keep/Delete", "Actions"
+        ])
+        self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.results_table.setAlternatingRowColors(True)
+        self.results_table.setMouseTracking(True)
+        self.results_table.cellEntered.connect(self.on_cell_hover)
+        self.results_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        results_layout.addWidget(self.results_table)
+        
+        # Deletion buttons
         deletion_layout = self.create_deletion_buttons()
-        main_layout.addLayout(deletion_layout)
+        results_layout.addLayout(deletion_layout)
+        
+        main_splitter.addWidget(results_widget)
+        
+        # Set initial splitter sizes: 30% top, 70% results
+        main_splitter.setStretchFactor(0, 3)
+        main_splitter.setStretchFactor(1, 7)
+        
+        main_layout.addWidget(main_splitter)
     
     def open_backups_folder(self):
         """Open the backups folder in file explorer."""
@@ -175,22 +199,20 @@ class MainWindow(QMainWindow):
             )
     
     def create_folder_panel(self):
-        group = QGroupBox("1. Choose folders")
+        group = QGroupBox("Folders to Scan")
         layout = QVBoxLayout()
-        
-        hint = QLabel("Add one or more folders to scan. Subfolders are included automatically.")
-        hint.setObjectName("hintLabel")
-        layout.addWidget(hint)
+        layout.setSpacing(4)
         
         self.folder_list = QListWidget()
+        self.folder_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.folder_list)
         
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton("Add Folder…")
+        add_btn = QPushButton("Add")
         add_btn.clicked.connect(self.add_folder)
         btn_layout.addWidget(add_btn)
         
-        remove_btn = QPushButton("Remove Selected")
+        remove_btn = QPushButton("Remove")
         remove_btn.clicked.connect(self.remove_folder)
         btn_layout.addWidget(remove_btn)
         
@@ -199,45 +221,42 @@ class MainWindow(QMainWindow):
         return group
     
     def create_options_panel(self):
-        group = QGroupBox("2. Scan settings")
+        group = QGroupBox("Scan Options")
         layout = QVBoxLayout()
+        layout.setSpacing(4)
         
-        mode_box = QGroupBox("What to look for")
-        mode_layout = QVBoxLayout()
-        self.exact_match_cb = QCheckBox("Exact duplicates (fast, safe)")
+        # Detection options in compact layout
+        self.exact_match_cb = QCheckBox("Exact duplicates")
         self.exact_match_cb.setChecked(True)
-        mode_layout.addWidget(self.exact_match_cb)
+        layout.addWidget(self.exact_match_cb)
         
-        self.similar_images_cb = QCheckBox("Similar images (content-based)")
+        self.similar_images_cb = QCheckBox("Similar images")
         self.similar_images_cb.setChecked(True)
-        mode_layout.addWidget(self.similar_images_cb)
+        layout.addWidget(self.similar_images_cb)
         
-        self.similar_videos_cb = QCheckBox("Similar videos (content-based)")
+        self.similar_videos_cb = QCheckBox("Similar videos")
         self.similar_videos_cb.setChecked(True)
-        mode_layout.addWidget(self.similar_videos_cb)
+        layout.addWidget(self.similar_videos_cb)
         
-        self.diff_resolution_cb = QCheckBox("Treat different resolutions as duplicates")
+        self.diff_resolution_cb = QCheckBox("Different resolutions")
         self.diff_resolution_cb.setChecked(True)
-        mode_layout.addWidget(self.diff_resolution_cb)
+        layout.addWidget(self.diff_resolution_cb)
         
-        self.diff_format_cb = QCheckBox("Treat different formats as duplicates")
+        self.diff_format_cb = QCheckBox("Different formats")
         self.diff_format_cb.setChecked(True)
-        mode_layout.addWidget(self.diff_format_cb)
-        mode_box.setLayout(mode_layout)
-        layout.addWidget(mode_box)
+        layout.addWidget(self.diff_format_cb)
         
-        resources_box = QGroupBox("Performance")
-        form = QFormLayout()
+        # Performance settings in compact form
+        perf_layout = QFormLayout()
+        perf_layout.setVerticalSpacing(4)
+        perf_layout.setHorizontalSpacing(8)
         
-        # CPU threads
         cpu_count = psutil.cpu_count(logical=True) or 4
         self.thread_spin = QSpinBox()
         self.thread_spin.setRange(1, cpu_count)
         self.thread_spin.setValue(min(self.config.get('thread_count', 4), cpu_count))
-        self.thread_spin.setToolTip(f"How many CPU threads to use while scanning. Your system has {cpu_count} logical cores.")
-        form.addRow("CPU threads:", self.thread_spin)
+        perf_layout.addRow("Threads:", self.thread_spin)
         
-        # RAM slider - use actual system memory
         saved_ram = self.config.get('max_memory_mb', 2048)
         default_ram = min(saved_ram, self.available_ram_mb)
         
@@ -246,104 +265,62 @@ class MainWindow(QMainWindow):
         self.ram_slider.setSingleStep(256)
         self.ram_slider.setPageStep(512)
         self.ram_slider.setValue(default_ram)
-        self.ram_slider.setToolTip(
-            f"Maximum RAM in MB the scanner is allowed to use.\n"
-            f"Total system RAM: {self.total_ram_mb} MB\n"
-            f"Currently available: {self.available_ram_mb} MB"
-        )
         
         self.ram_label = QLabel()
         self.update_ram_label(self.ram_slider.value())
         self.ram_slider.valueChanged.connect(self.update_ram_label)
         
         ram_layout = QHBoxLayout()
-        ram_layout.addWidget(self.ram_slider)
+        ram_layout.addWidget(self.ram_slider, 1)
         ram_layout.addWidget(self.ram_label)
-        ram_container = QWidget()
-        ram_container.setLayout(ram_layout)
-        form.addRow("RAM limit:", ram_container)
+        perf_layout.addRow("RAM:", ram_layout)
         
-        # System info label
-        system_info = QLabel(
-            f"System: {self.total_ram_mb:,} MB total, {self.available_ram_mb:,} MB available"
-        )
-        system_info.setObjectName("hintLabel")
-        form.addRow("", system_info)
-        
-        # Similarity threshold
         self.threshold_spin = QSpinBox()
         self.threshold_spin.setRange(50, 100)
         self.threshold_spin.setValue(self.config.get('similarity_threshold', 90))
-        self.threshold_spin.setToolTip("Higher = stricter matching, fewer loose matches.")
-        form.addRow("Similarity threshold:", self.threshold_spin)
+        perf_layout.addRow("Threshold:", self.threshold_spin)
         
-        resources_box.setLayout(form)
-        layout.addWidget(resources_box)
+        layout.addLayout(perf_layout)
         
-        apply_layout = QHBoxLayout()
         self.apply_btn = QPushButton("Apply Settings")
         self.apply_btn.setObjectName("applyButton")
-        self.apply_btn.setToolTip("Save these settings and use them for the next scan.")
         self.apply_btn.clicked.connect(self.apply_settings)
-        apply_layout.addWidget(self.apply_btn)
-        apply_layout.addStretch()
-        layout.addLayout(apply_layout)
+        layout.addWidget(self.apply_btn)
         
         layout.addStretch()
         group.setLayout(layout)
         return group
     
     def update_ram_label(self, value: int):
-        """Update RAM label with current slider value and percentage."""
-        percentage = (value / self.total_ram_mb) * 100
-        self.ram_label.setText(f"{value:,} MB ({percentage:.0f}%)")
+        """Update RAM label with current slider value."""
+        if value >= 1024:
+            self.ram_label.setText(f"{value/1024:.1f} GB")
+        else:
+            self.ram_label.setText(f"{value} MB")
     
     def create_control_buttons(self):
         layout = QHBoxLayout()
         
         self.start_btn = QPushButton("Start Scan")
         self.start_btn.setObjectName("startButton")
-        self.start_btn.setToolTip("Begin scanning using the folders and settings above.")
         self.start_btn.clicked.connect(self.start_scan)
         layout.addWidget(self.start_btn)
         
         self.stop_btn = QPushButton("Stop")
         self.stop_btn.setEnabled(False)
-        self.stop_btn.setToolTip("Attempt to cancel the current scan.")
         self.stop_btn.clicked.connect(self.stop_scan)
         layout.addWidget(self.stop_btn)
         
-        self.background_btn = QPushButton("Run in Background")
+        self.background_btn = QPushButton("Minimize")
         self.background_btn.setEnabled(False)
-        self.background_btn.setToolTip("Minimize while scan continues.")
         self.background_btn.clicked.connect(self.run_background)
         layout.addWidget(self.background_btn)
         
         layout.addStretch()
         return layout
     
-    def create_results_section(self, parent_layout):
-        results_label = QLabel("Hover over any row to reveal the 'Show in Folder' button")
-        results_label.setObjectName("hintLabel")
-        parent_layout.addWidget(results_label)
-        
-        self.results_table = QTableWidget()
-        self.results_table.setColumnCount(8)
-        self.results_table.setHorizontalHeaderLabels([
-            "Group", "File Path", "Size (MB)", "Resolution",
-            "Format", "Hash", "Keep/Delete", "Actions"
-        ])
-        self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.results_table.setAlternatingRowColors(True)
-        self.results_table.setToolTip("Each row represents a file. Files with the same group number are duplicates.")
-        self.results_table.setMouseTracking(True)
-        self.results_table.cellEntered.connect(self.on_cell_hover)
-        parent_layout.addWidget(self.results_table)
-    
     def on_cell_hover(self, row, column):
         """Handle cell hover to show/hide action buttons."""
-        # Hide all buttons first
         for r in range(self.results_table.rowCount()):
             widget = self.results_table.cellWidget(r, 7)
             if widget:
@@ -359,10 +336,9 @@ class MainWindow(QMainWindow):
         try:
             if system == "Windows":
                 subprocess.run(['explorer', '/select,', os.path.normpath(file_path)])
-            elif system == "Darwin":  # macOS
+            elif system == "Darwin":
                 subprocess.run(['open', '-R', file_path])
-            else:  # Linux
-                # Open folder containing file
+            else:
                 folder = os.path.dirname(file_path)
                 subprocess.run(['xdg-open', folder])
         except Exception as e:
@@ -373,20 +349,17 @@ class MainWindow(QMainWindow):
         
         delete_all_but_one = QPushButton("Delete All But One per Group")
         delete_all_but_one.setObjectName("deleteButton")
-        delete_all_but_one.setToolTip("For each group, keep one file and back up everything else before deletion.")
         delete_all_but_one.clicked.connect(lambda: self.delete_duplicates('keep_one'))
         layout.addWidget(delete_all_but_one)
         
         delete_all_but_best = QPushButton("Keep Best Quality per Group")
         delete_all_but_best.setObjectName("deleteButton")
-        delete_all_but_best.setToolTip("For each group, keep the largest file (often highest quality) and delete the rest.")
         delete_all_but_best.clicked.connect(lambda: self.delete_duplicates('keep_best'))
         layout.addWidget(delete_all_but_best)
         
         layout.addStretch()
         
         clear_btn = QPushButton("Clear Results")
-        clear_btn.setToolTip("Clear the table without touching any files.")
         clear_btn.clicked.connect(self.clear_results)
         layout.addWidget(clear_btn)
         
@@ -435,7 +408,7 @@ class MainWindow(QMainWindow):
         self.files_processed = 0
         self.total_files = 0
         self.last_progress_update = datetime.now()
-        self.timer.start(500)  # Update every 500ms for smoother display
+        self.timer.start(500)
         
         self.scanner_thread = ScannerThread(folders, options)
         self.scanner_thread.progress.connect(self.update_progress)
@@ -472,14 +445,12 @@ class MainWindow(QMainWindow):
         self.files_processed = current_count
         self.total_files = total_count
         
-        # Update status with current file
         file_name = Path(current_file).name
         self.status_label.setText(f"Scanning: {file_name} ({current_count}/{total_count})")
         
-        # Calculate and update ETA
         if self.start_time and current_count > 0:
             elapsed = (datetime.now() - self.start_time).total_seconds()
-            rate = current_count / elapsed  # files per second
+            rate = current_count / elapsed
             
             if rate > 0:
                 remaining_files = total_count - current_count
@@ -503,7 +474,6 @@ class MainWindow(QMainWindow):
             minutes = elapsed.seconds // 60
             seconds = elapsed.seconds % 60
             
-            # Only update status if not currently showing a file scan
             if "Scanning:" not in self.status_label.text():
                 self.status_label.setText(f"Scanning… | Elapsed: {minutes}m {seconds}s")
     
@@ -562,7 +532,7 @@ class MainWindow(QMainWindow):
                 btn_layout.addWidget(show_btn)
                 btn_layout.addStretch()
                 
-                btn_widget.setVisible(False)  # Hidden by default
+                btn_widget.setVisible(False)
                 self.results_table.setCellWidget(row, 7, btn_widget)
                 
                 first_row_for_group = False
