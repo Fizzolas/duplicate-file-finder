@@ -26,7 +26,7 @@ echo Building executable...
 echo This may take a few minutes...
 echo.
 
-pyinstaller --name="DuplicateFileFinder" ^
+python -m PyInstaller --name="DuplicateFileFinder" ^
     --onefile ^
     --windowed ^
     --icon=NONE ^
