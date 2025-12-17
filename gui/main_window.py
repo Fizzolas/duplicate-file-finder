@@ -2,17 +2,19 @@
 
 import os
 import psutil
+import subprocess
+import platform
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QProgressBar, QTableWidget,
     QTableWidgetItem, QFileDialog, QListWidget, QTabWidget,
     QCheckBox, QSpinBox, QGroupBox, QMessageBox, QHeaderView,
-    QAbstractItemView, QSplitter, QSlider, QFormLayout
+    QAbstractItemView, QSplitter, QSlider, QFormLayout, QStyledItemDelegate
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QDesktopServices, QUrl, QCursor
 
 from core.scanner import DuplicateScanner
 from core.deletion import DeletionManager
@@ -22,7 +24,7 @@ from gui.styles import APP_STYLESHEET
 
 class ScannerThread(QThread):
     """Worker thread for scanning operations."""
-    progress = pyqtSignal(int, str)
+    progress = pyqtSignal(int, str, int, int)  # percent, file, current_count, total_count
     finished = pyqtSignal(list)
     error = pyqtSignal(str)
     
@@ -55,6 +57,14 @@ class ScannerThread(QThread):
             self.scanner.stop()
 
 
+class TableButtonDelegate(QStyledItemDelegate):
+    """Custom delegate to show buttons on hover in table."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.hovered_row = -1
+
+
 class MainWindow(QMainWindow):
     """Main application window."""
     
@@ -65,6 +75,9 @@ class MainWindow(QMainWindow):
         self.deletion_manager = DeletionManager(self.config)
         self.current_duplicates = []
         self.start_time = None
+        self.files_processed = 0
+        self.total_files = 0
+        self.last_progress_update = None
         
         # Get system memory
         self.total_ram_mb = int(psutil.virtual_memory().total / (1024 * 1024))
@@ -76,7 +89,7 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle("Duplicate File Finder")
-        self.setGeometry(100, 100, 1250, 820)
+        self.setGeometry(100, 100, 1250, 850)
         self.setStyleSheet(APP_STYLESHEET)
         
         central_widget = QWidget()
@@ -130,10 +143,20 @@ class MainWindow(QMainWindow):
         self.progress_bar.setTextVisible(True)
         main_layout.addWidget(self.progress_bar)
         
-        self.status_label = QLabel("Ready to scan • Press 'Apply Settings' after changes")
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Status and ETA layout
+        status_layout = QHBoxLayout()
+        
+        self.status_label = QLabel("Ready to scan")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.status_label.setObjectName("statusLabel")
-        main_layout.addWidget(self.status_label)
+        status_layout.addWidget(self.status_label, 1)
+        
+        self.eta_label = QLabel("")
+        self.eta_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.eta_label.setObjectName("etaLabel")
+        status_layout.addWidget(self.eta_label)
+        
+        main_layout.addLayout(status_layout)
         
         self.create_results_section(main_layout)
         
@@ -216,7 +239,6 @@ class MainWindow(QMainWindow):
         
         # RAM slider - use actual system memory
         saved_ram = self.config.get('max_memory_mb', 2048)
-        # Clamp saved value to available range
         default_ram = min(saved_ram, self.available_ram_mb)
         
         self.ram_slider = QSlider(Qt.Orientation.Horizontal)
@@ -301,17 +323,50 @@ class MainWindow(QMainWindow):
         return layout
     
     def create_results_section(self, parent_layout):
+        results_label = QLabel("Hover over any row to reveal the 'Show in Folder' button")
+        results_label.setObjectName("hintLabel")
+        parent_layout.addWidget(results_label)
+        
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(7)
+        self.results_table.setColumnCount(8)
         self.results_table.setHorizontalHeaderLabels([
             "Group", "File Path", "Size (MB)", "Resolution",
-            "Format", "Hash", "Keep/Delete"
+            "Format", "Hash", "Keep/Delete", "Actions"
         ])
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.results_table.setAlternatingRowColors(True)
         self.results_table.setToolTip("Each row represents a file. Files with the same group number are duplicates.")
+        self.results_table.setMouseTracking(True)
+        self.results_table.cellEntered.connect(self.on_cell_hover)
         parent_layout.addWidget(self.results_table)
+    
+    def on_cell_hover(self, row, column):
+        """Handle cell hover to show/hide action buttons."""
+        # Hide all buttons first
+        for r in range(self.results_table.rowCount()):
+            widget = self.results_table.cellWidget(r, 7)
+            if widget:
+                widget.setVisible(r == row)
+    
+    def show_in_folder(self, file_path: str):
+        """Open file explorer and highlight the file."""
+        if not os.path.exists(file_path):
+            QMessageBox.warning(self, "File Not Found", f"File no longer exists:\n{file_path}")
+            return
+        
+        system = platform.system()
+        try:
+            if system == "Windows":
+                subprocess.run(['explorer', '/select,', os.path.normpath(file_path)])
+            elif system == "Darwin":  # macOS
+                subprocess.run(['open', '-R', file_path])
+            else:  # Linux
+                # Open folder containing file
+                folder = os.path.dirname(file_path)
+                subprocess.run(['xdg-open', folder])
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not open file location:\n{str(e)}")
     
     def create_deletion_buttons(self):
         layout = QHBoxLayout()
@@ -377,7 +432,10 @@ class MainWindow(QMainWindow):
         }
         
         self.start_time = datetime.now()
-        self.timer.start(1000)
+        self.files_processed = 0
+        self.total_files = 0
+        self.last_progress_update = datetime.now()
+        self.timer.start(500)  # Update every 500ms for smoother display
         
         self.scanner_thread = ScannerThread(folders, options)
         self.scanner_thread.progress.connect(self.update_progress)
@@ -390,7 +448,8 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(True)
         self.background_btn.setEnabled(True)
         self.progress_bar.setValue(0)
-        self.status_label.setText("Scanning… (press Stop to cancel)")
+        self.status_label.setText("Scanning…")
+        self.eta_label.setText("Calculating ETA…")
     
     def stop_scan(self):
         if self.scanner_thread:
@@ -402,22 +461,51 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(False)
         self.background_btn.setEnabled(False)
         self.status_label.setText("Scan stopped")
+        self.eta_label.setText("")
     
     def run_background(self):
         self.showMinimized()
-        self.status_label.setText("Running in background…")
     
-    def update_progress(self, percent, current_file):
+    def update_progress(self, percent, current_file, current_count, total_count):
+        """Update progress bar, status, and ETA."""
         self.progress_bar.setValue(percent)
-        self.status_label.setText(f"Scanning: {Path(current_file).name}")
+        self.files_processed = current_count
+        self.total_files = total_count
+        
+        # Update status with current file
+        file_name = Path(current_file).name
+        self.status_label.setText(f"Scanning: {file_name} ({current_count}/{total_count})")
+        
+        # Calculate and update ETA
+        if self.start_time and current_count > 0:
+            elapsed = (datetime.now() - self.start_time).total_seconds()
+            rate = current_count / elapsed  # files per second
+            
+            if rate > 0:
+                remaining_files = total_count - current_count
+                eta_seconds = remaining_files / rate
+                
+                if eta_seconds < 60:
+                    eta_text = f"ETA: {int(eta_seconds)}s"
+                elif eta_seconds < 3600:
+                    eta_text = f"ETA: {int(eta_seconds / 60)}m {int(eta_seconds % 60)}s"
+                else:
+                    hours = int(eta_seconds / 3600)
+                    minutes = int((eta_seconds % 3600) / 60)
+                    eta_text = f"ETA: {hours}h {minutes}m"
+                
+                self.eta_label.setText(eta_text)
     
     def update_elapsed_time(self):
+        """Update elapsed time display periodically."""
         if self.start_time:
             elapsed = datetime.now() - self.start_time
-            base_text = self.status_label.text().split("|")[0].strip()
-            self.status_label.setText(
-                f"{base_text} | Elapsed: {elapsed.seconds // 60}m {elapsed.seconds % 60}s"
-            )
+            minutes = elapsed.seconds // 60
+            seconds = elapsed.seconds % 60
+            
+            # Only update status if not currently showing a file scan
+            if "Scanning:" not in self.status_label.text():
+                self.status_label.setText(f"Scanning… | Elapsed: {minutes}m {seconds}s")
     
     def scan_finished(self, duplicates):
         self.timer.stop()
@@ -428,7 +516,11 @@ class MainWindow(QMainWindow):
         self.stop_btn.setEnabled(False)
         self.background_btn.setEnabled(False)
         self.progress_bar.setValue(100)
-        self.status_label.setText(f"Scan complete! Found {len(duplicates)} duplicate groups.")
+        
+        elapsed = datetime.now() - self.start_time
+        elapsed_text = f"{elapsed.seconds // 60}m {elapsed.seconds % 60}s"
+        self.status_label.setText(f"Scan complete! Found {len(duplicates)} duplicate groups in {elapsed_text}.")
+        self.eta_label.setText("")
         
         if self.isMinimized():
             self.showNormal()
@@ -439,6 +531,7 @@ class MainWindow(QMainWindow):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.background_btn.setEnabled(False)
+        self.eta_label.setText("")
     
     def display_results(self, duplicates):
         self.results_table.setRowCount(0)
@@ -456,6 +549,22 @@ class MainWindow(QMainWindow):
                 self.results_table.setItem(row, 4, QTableWidgetItem(file_info.get('format', 'N/A')))
                 self.results_table.setItem(row, 5, QTableWidgetItem(file_info.get('hash', '')[:16]))
                 self.results_table.setItem(row, 6, QTableWidgetItem("Keep" if first_row_for_group else "Delete"))
+                
+                # Add "Show in Folder" button
+                btn_widget = QWidget()
+                btn_layout = QHBoxLayout(btn_widget)
+                btn_layout.setContentsMargins(4, 2, 4, 2)
+                
+                show_btn = QPushButton("Show in Folder")
+                show_btn.setObjectName("showInFolderButton")
+                show_btn.setMaximumWidth(120)
+                show_btn.clicked.connect(lambda checked, path=file_info['path']: self.show_in_folder(path))
+                btn_layout.addWidget(show_btn)
+                btn_layout.addStretch()
+                
+                btn_widget.setVisible(False)  # Hidden by default
+                self.results_table.setCellWidget(row, 7, btn_widget)
+                
                 first_row_for_group = False
     
     def delete_duplicates(self, mode):
@@ -483,5 +592,6 @@ class MainWindow(QMainWindow):
     def clear_results(self):
         self.results_table.setRowCount(0)
         self.current_duplicates = []
-        self.status_label.setText("Ready to scan • Press 'Apply Settings' after changes")
+        self.status_label.setText("Ready to scan")
+        self.eta_label.setText("")
         self.progress_bar.setValue(0)
