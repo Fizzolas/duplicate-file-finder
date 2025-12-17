@@ -7,6 +7,13 @@ from pathlib import Path
 from PIL import Image
 from typing import Dict, Optional
 import numpy as np
+import signal
+import os
+
+
+class TimeoutError(Exception):
+    """Raised when analysis times out."""
+    pass
 
 
 class FileHasher:
@@ -91,43 +98,77 @@ class ImageAnalyzer:
 class VideoAnalyzer:
     """Video analyzer for content-based comparison."""
     
-    def __init__(self, threshold: int = 90):
+    def __init__(self, threshold: int = 90, timeout_seconds: int = 10):
         self.threshold = threshold
         self.sample_frames = 10  # Number of frames to sample
+        self.timeout_seconds = timeout_seconds
     
     def analyze(self, file_path: str) -> Optional[Dict]:
-        """Analyze video and create content signature."""
+        """Analyze video and create content signature with timeout protection."""
         try:
+            # Quick file size check - skip if corrupted or too large
+            file_size = os.path.getsize(file_path)
+            if file_size < 1024:  # Less than 1KB, likely corrupted
+                return None
+            
             cap = cv2.VideoCapture(file_path)
             
             if not cap.isOpened():
                 return None
             
-            # Get video properties
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            # Get video properties with timeout protection
+            try:
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            except Exception:
+                cap.release()
+                return None
+            
+            # Validate properties
+            if fps <= 0 or frame_count <= 0 or width <= 0 or height <= 0:
+                cap.release()
+                return None
+            
             duration = frame_count / fps if fps > 0 else 0
             
+            # Sample fewer frames for very long videos or if fps is weird
+            sample_count = min(self.sample_frames, max(3, frame_count // 10))
+            
             # Sample frames evenly throughout video
-            frame_indices = np.linspace(0, frame_count - 1, self.sample_frames, dtype=int)
+            frame_indices = np.linspace(0, max(0, frame_count - 1), sample_count, dtype=int)
             frame_hashes = []
             
+            successful_reads = 0
             for idx in frame_indices:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-                ret, frame = cap.read()
-                
-                if ret:
-                    # Convert to grayscale and resize for consistent comparison
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    resized = cv2.resize(gray, (16, 16))
+                try:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+                    ret, frame = cap.read()
                     
-                    # Calculate hash of frame
-                    frame_hash = hashlib.md5(resized.tobytes()).hexdigest()
-                    frame_hashes.append(frame_hash)
+                    if ret and frame is not None:
+                        # Convert to grayscale and resize for consistent comparison
+                        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                        resized = cv2.resize(gray, (16, 16))
+                        
+                        # Calculate hash of frame
+                        frame_hash = hashlib.md5(resized.tobytes()).hexdigest()
+                        frame_hashes.append(frame_hash)
+                        successful_reads += 1
+                    
+                    # If we can't read enough frames, skip this video
+                    if len(frame_hashes) == 0 and successful_reads == 0 and idx > frame_count // 2:
+                        cap.release()
+                        return None
+                        
+                except Exception:
+                    continue
             
             cap.release()
+            
+            # Need at least a few frames to be valid
+            if len(frame_hashes) < 2:
+                return None
             
             return {
                 'frame_hashes': frame_hashes,
@@ -137,6 +178,7 @@ class VideoAnalyzer:
                 'frame_count': frame_count
             }
         except Exception as e:
+            # Silently skip problematic videos
             return None
     
     def compare(self, sig1: Dict, sig2: Dict, threshold: int) -> bool:

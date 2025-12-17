@@ -6,6 +6,7 @@ import subprocess
 import platform
 from pathlib import Path
 from datetime import datetime, timedelta
+from collections import deque
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QProgressBar, QTableWidget,
@@ -71,6 +72,10 @@ class MainWindow(QMainWindow):
         self.files_processed = 0
         self.total_files = 0
         self.last_progress_update = None
+        
+        # Rolling average for ETA calculation (last 10 progress updates)
+        self.recent_progress_times = deque(maxlen=10)
+        self.recent_file_counts = deque(maxlen=10)
         
         # Get system memory
         self.total_ram_mb = int(psutil.virtual_memory().total / (1024 * 1024))
@@ -408,6 +413,8 @@ class MainWindow(QMainWindow):
         self.files_processed = 0
         self.total_files = 0
         self.last_progress_update = datetime.now()
+        self.recent_progress_times.clear()
+        self.recent_file_counts.clear()
         self.timer.start(500)
         
         self.scanner_thread = ScannerThread(folders, options)
@@ -440,7 +447,7 @@ class MainWindow(QMainWindow):
         self.showMinimized()
     
     def update_progress(self, percent, current_file, current_count, total_count):
-        """Update progress bar, status, and ETA."""
+        """Update progress bar, status, and ETA with rolling average."""
         self.progress_bar.setValue(percent)
         self.files_processed = current_count
         self.total_files = total_count
@@ -448,24 +455,41 @@ class MainWindow(QMainWindow):
         file_name = Path(current_file).name
         self.status_label.setText(f"Scanning: {file_name} ({current_count}/{total_count})")
         
-        if self.start_time and current_count > 0:
-            elapsed = (datetime.now() - self.start_time).total_seconds()
-            rate = current_count / elapsed
+        # Track recent progress for rolling average ETA
+        current_time = datetime.now()
+        self.recent_progress_times.append(current_time)
+        self.recent_file_counts.append(current_count)
+        
+        # Calculate ETA using rolling average (more responsive to recent speed)
+        if len(self.recent_progress_times) >= 2:
+            time_diff = (self.recent_progress_times[-1] - self.recent_progress_times[0]).total_seconds()
+            file_diff = self.recent_file_counts[-1] - self.recent_file_counts[0]
             
-            if rate > 0:
-                remaining_files = total_count - current_count
-                eta_seconds = remaining_files / rate
+            if time_diff > 0 and file_diff > 0:
+                recent_rate = file_diff / time_diff  # files per second based on recent progress
                 
-                if eta_seconds < 60:
-                    eta_text = f"ETA: {int(eta_seconds)}s"
-                elif eta_seconds < 3600:
-                    eta_text = f"ETA: {int(eta_seconds / 60)}m {int(eta_seconds % 60)}s"
+                if recent_rate > 0:
+                    remaining_files = total_count - current_count
+                    eta_seconds = remaining_files / recent_rate
+                    
+                    if eta_seconds < 60:
+                        eta_text = f"ETA: {int(eta_seconds)}s"
+                    elif eta_seconds < 3600:
+                        eta_text = f"ETA: {int(eta_seconds / 60)}m {int(eta_seconds % 60)}s"
+                    else:
+                        hours = int(eta_seconds / 3600)
+                        minutes = int((eta_seconds % 3600) / 60)
+                        eta_text = f"ETA: {hours}h {minutes}m"
+                    
+                    # Show rate for transparency
+                    if recent_rate >= 1:
+                        eta_text += f" ({int(recent_rate)}/s)"
+                    else:
+                        eta_text += f" ({recent_rate:.1f}/s)"
+                    
+                    self.eta_label.setText(eta_text)
                 else:
-                    hours = int(eta_seconds / 3600)
-                    minutes = int((eta_seconds % 3600) / 60)
-                    eta_text = f"ETA: {hours}h {minutes}m"
-                
-                self.eta_label.setText(eta_text)
+                    self.eta_label.setText("ETA: Calculating...")
     
     def update_elapsed_time(self):
         """Update elapsed time display periodically."""
