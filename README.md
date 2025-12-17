@@ -44,19 +44,21 @@ python main.py
 - **Multithreaded Scanning**: Automatically uses all available CPU cores
 - **Memory Aware**: Adjusts to your system's available RAM (auto-detected)
 - **Background Processing**: Minimize the app and let it work while you do other tasks
-- **Real-time Progress**: See exactly what's being scanned and how much time remains
+- **Real-time Progress**: See exactly what's being scanned with live ETA calculations
 - **Cancellable**: Stop scans at any time without losing partial results
 
 ### User Experience
 - **Modern Dark Interface**: Clean, easy-to-read design with helpful tooltips everywhere
 - **Guided Workflow**: Step-by-step prompts make it impossible to get lost
 - **Visual Grouping**: Duplicates are clearly organized by group number in the results table
+- **Hover Actions**: Hover over any file to reveal "Show in Folder" button that opens and highlights the file
 - **Flexible Deletion**: Choose to keep one copy, keep the best quality, or manually select
 
 ### Safety First
-- **Automatic Backups**: Every deletion creates a timestamped ZIP archive first
+- **Automatic Backups**: Every deletion creates a timestamped ZIP archive in your Documents folder
 - **Recycle Bin Integration**: Deleted files go to Recycle Bin by default (recoverable)
 - **Backup Before Delete**: Files are backed up BEFORE deletion - never after
+- **Persistent Storage**: All backups saved to `Documents/DuplicateFileFinder/backups` regardless of where app runs
 - **No Surprises**: Confirmation dialogs before any destructive action
 
 ---
@@ -83,7 +85,11 @@ Click **"Add Folder"** and select one or more directories to scan. Subfolders ar
 **Important:** Click **"Apply Settings"** after making changes!
 
 ### Step 3: Scan
-Click **"Start Scan"**. Progress bar and status text show real-time updates.
+Click **"Start Scan"**. The app shows:
+- Progress bar with current file being scanned
+- Files processed count (e.g., "143/1,524")
+- **Estimated Time to Completion** in the top-right
+- Elapsed time updates every 500ms
 
 ### Step 4: Review Results
 The results table shows all duplicate groups:
@@ -94,6 +100,9 @@ The results table shows all duplicate groups:
 - **Format**: File extension
 - **Hash**: Unique identifier (truncated for display)
 - **Keep/Delete**: Shows which files will be kept or deleted
+- **Actions**: Hover over any row to reveal "Show in Folder" button
+
+**Pro Tip:** Click "Show in Folder" to open File Explorer with the file highlighted, making it easy to manually verify duplicates.
 
 ### Step 5: Delete Safely
 
@@ -104,7 +113,7 @@ Keeps one file from each duplicate group, backs up and deletes the rest.
 Keeps the largest file (usually highest quality) from each group, deletes the rest.
 
 Both options:
-1. Create a timestamped backup ZIP in `./backups/`
+1. Create a timestamped backup ZIP in `Documents/DuplicateFileFinder/backups/`
 2. Send files to Recycle Bin (or permanently delete if configured)
 3. Show confirmation with backup location
 
@@ -145,9 +154,33 @@ Uses **SHA256 hashing** of entire file content. Two files with the same hash are
 
 ---
 
+## 🔧 Data Storage
+
+All application data is stored in your Documents folder for easy access and reliable permissions:
+
+```
+C:\Users\YourName\Documents\DuplicateFileFinder\
+├── backups\             # ZIP archives of deleted files
+│   ├── backup_20251217_143052.zip
+│   └── backup_20251217_160423.zip
+├── logs\                # Application logs
+│   └── app.log
+└── config.json          # Your settings
+```
+
+**Benefits:**
+- Always writable (no permission issues)
+- Easy to find and browse
+- Persists even if you delete the app
+- Works the same on Windows, Linux, and macOS
+
+Click **"Open Backups Folder"** in the app to jump directly to your backups.
+
+---
+
 ## 🛠️ Configuration
 
-Settings are saved in `config.json` (auto-created on first run):
+Settings are saved in `Documents/DuplicateFileFinder/config.json` (auto-created on first run):
 
 ```json
 {
@@ -155,7 +188,7 @@ Settings are saved in `config.json` (auto-created on first run):
   "thread_count": 4,
   "max_memory_mb": 2048,
   "backup_enabled": true,
-  "backup_directory": "./backups",
+  "backup_directory": "C:\\Users\\YourName\\Documents\\DuplicateFileFinder\\backups",
   "use_trash": true
 }
 ```
@@ -176,6 +209,7 @@ Settings are saved in `config.json` (auto-created on first run):
 - **Speed vs Accuracy**: Disable "Similar images" and "Similar videos" for faster exact-match-only scans
 - **Memory Issues**: Lower the RAM limit if you experience slowdowns or crashes
 - **CPU Usage**: Reduce thread count if your PC becomes unresponsive during scans
+- **Watch the ETA**: The estimated time to completion updates in real-time based on current scan speed
 
 ---
 
@@ -185,6 +219,7 @@ Settings are saved in `config.json` (auto-created on first run):
 - Increase CPU thread count in Performance settings
 - Disable similarity detection (use exact match only)
 - Scan smaller directories
+- Check the ETA - video analysis is slower than image hashing
 
 ### "High memory usage"
 - Lower the RAM limit slider in Performance settings
@@ -194,7 +229,12 @@ Settings are saved in `config.json` (auto-created on first run):
 ### "Results seem wrong"
 - Increase similarity threshold (90-95% recommended)
 - Enable only "Exact duplicates" to verify hash-based matching first
-- Check file extensions match your expectations
+- Use "Show in Folder" to manually inspect questionable matches
+
+### "Can't find my backups"
+- Click "Open Backups Folder" in the app header
+- Or manually browse to `Documents/DuplicateFileFinder/backups`
+- Backups are ZIP files named with timestamps
 
 ### "Application won't start" (source install)
 ```bash
@@ -265,3 +305,15 @@ Found a bug or have a feature request? [Open an issue](https://github.com/Fizzol
 
 Created by **Fizzolas**  
 GitHub: [@Fizzolas](https://github.com/Fizzolas)
+
+---
+
+## 🆕 Recent Updates
+
+**v1.0.0 - Latest**
+- Added hover-reveal "Show in Folder" buttons for quick file location access
+- Real-time ETA calculation shows estimated time remaining during scans
+- Fixed elapsed time display flickering during long scans
+- All app data (backups, config, logs) now stored in Documents folder
+- Auto-detects system RAM and CPU cores for optimal performance
+- Improved status messages with file count tracking
