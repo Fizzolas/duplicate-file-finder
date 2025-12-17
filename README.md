@@ -1,124 +1,153 @@
 # Duplicate File Finder
 
-An advanced GUI application for finding and removing duplicate images and videos with intelligent content comparison, multithreading, and automatic backup functionality.
+**Find and remove duplicate images and videos with intelligent content comparison, automatic backups, and a clean GUI.**
 
-## Download & Installation
+Duplicate File Finder uses advanced perceptual hashing and content analysis to detect not just exact copies, but also similar files across different resolutions, formats, and quality levels. Scan thousands of files quickly with multithreaded processing, then safely delete duplicates with automatic backup protection.
 
-### Option 1: Download Pre-built Release (Recommended)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Python](https://img.shields.io/badge/python-3.8%2B-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-1. Go to the [Releases](https://github.com/Fizzolas/duplicate-file-finder/releases) page
-2. Download the latest `DuplicateFileFinder-vX.X.X.zip`
-3. Extract the ZIP file
-4. Run `DuplicateFileFinder.exe` (Windows) or the appropriate executable for your OS
+---
 
-### Option 2: Run from Source
+## 🚀 Quick Start
 
-**Prerequisites:**
-- Python 3.8 or higher
-- pip package manager
+### Download Pre-built Release (Easiest)
 
-**Setup:**
+1. Go to [Releases](https://github.com/Fizzolas/duplicate-file-finder/releases)
+2. Download `DuplicateFileFinder.exe` (Windows) or the latest release for your OS
+3. Run the executable - no installation needed!
 
-1. Clone the repository:
+### Run from Source
+
+If you prefer to run from Python:
+
 ```bash
 git clone https://github.com/Fizzolas/duplicate-file-finder.git
 cd duplicate-file-finder
-```
-
-2. Install dependencies:
-```bash
 pip install -r requirements.txt
-```
-
-3. Run the application:
-```bash
 python main.py
 ```
 
-### Option 3: Build Your Own Executable
+---
 
-1. Install build dependencies:
-```bash
-pip install -r requirements.txt
-pip install -r requirements-build.txt
-```
+## ✨ Key Features
 
-2. Run the build script:
+### Smart Detection
+- **Exact Duplicates**: Hash-based detection finds byte-perfect copies instantly
+- **Visual Similarity**: Finds images that look the same even if resolution or compression differs
+- **Video Content Matching**: Detects re-encoded videos and resolution variants
+- **Cross-Format Detection**: Matches the same content saved in different file formats (JPG vs PNG, MP4 vs AVI)
+- **Resolution Variants**: Identifies the same image/video at different sizes
 
-**Windows:**
-```bash
-build.bat
-```
+### Performance
+- **Multithreaded Scanning**: Automatically uses all available CPU cores
+- **Memory Aware**: Adjusts to your system's available RAM (auto-detected)
+- **Background Processing**: Minimize the app and let it work while you do other tasks
+- **Real-time Progress**: See exactly what's being scanned and how much time remains
+- **Cancellable**: Stop scans at any time without losing partial results
 
-**Linux/Mac:**
-```bash
-chmod +x build.sh
-./build.sh
-```
+### User Experience
+- **Modern Dark Interface**: Clean, easy-to-read design with helpful tooltips everywhere
+- **Guided Workflow**: Step-by-step prompts make it impossible to get lost
+- **Visual Grouping**: Duplicates are clearly organized by group number in the results table
+- **Flexible Deletion**: Choose to keep one copy, keep the best quality, or manually select
 
-3. Find the executable in the `dist/` folder
+### Safety First
+- **Automatic Backups**: Every deletion creates a timestamped ZIP archive first
+- **Recycle Bin Integration**: Deleted files go to Recycle Bin by default (recoverable)
+- **Backup Before Delete**: Files are backed up BEFORE deletion - never after
+- **No Surprises**: Confirmation dialogs before any destructive action
 
-## Features
+---
 
-- **Intelligent Duplicate Detection**
-  - Exact file matching (hash-based)
-  - Visual similarity detection for images (perceptual hashing)
-  - Content-based matching for videos
-  - Resolution-variant detection (same content, different resolutions)
-  - Format-variant detection (same content, different formats)
+## 📋 How to Use
 
-- **Performance Optimized**
-  - Multithreaded scanning for maximum performance
-  - Auto-detects system CPU cores and RAM
-  - Adjustable memory limits
-  - Background processing support
-  - Progress tracking and cancellation
+### Step 1: Add Folders
+Click **"Add Folder"** and select one or more directories to scan. Subfolders are automatically included.
 
-- **User-Friendly GUI**
-  - Clean, modern dark interface
-  - Real-time progress updates
-  - Visual preview of duplicates
-  - Detailed file information
-  - Helpful tooltips and guided workflow
+### Step 2: Configure Settings
 
-- **Safe Deletion**
-  - Automatic backup before deletion
-  - Multiple deletion modes
-  - Keep best quality option
-  - Undo functionality via backups
-  - Files sent to Recycle Bin by default
+**What to look for:**
+- ✅ **Exact duplicates** - Fast and safe, finds identical copies
+- ✅ **Similar images** - Finds visually similar photos (different resolutions, slight edits)
+- ✅ **Similar videos** - Detects re-encoded or resized videos
+- ✅ **Different resolutions** - Treats 1920×1080 and 1280×720 versions as duplicates
+- ✅ **Different formats** - Matches JPG/PNG or MP4/AVI versions of same content
 
-## Usage
+**Performance:**
+- **CPU Threads**: Auto-detected based on your system (adjust if needed)
+- **RAM Limit**: Slider shows your total system RAM - drag to set max usage
+- **Similarity Threshold**: Higher = stricter (90% is recommended)
 
-1. **Add Folders**: Click "Add Folder" to select directories to scan
+**Important:** Click **"Apply Settings"** after making changes!
 
-2. **Configure Options**:
-   - Choose what types of duplicates to find
-   - Adjust CPU threads (auto-detected based on your system)
-   - Set RAM limit (based on available system memory)
-   - Set similarity threshold (higher = stricter matching)
-   - Click **"Apply Settings"** to save your configuration
+### Step 3: Scan
+Click **"Start Scan"**. Progress bar and status text show real-time updates.
 
-3. **Start Scan**: Click "Start Scan" to begin detection
+### Step 4: Review Results
+The results table shows all duplicate groups:
+- **Group**: Files with the same number are duplicates of each other
+- **File Path**: Full location of each file
+- **Size**: File size in megabytes
+- **Resolution**: Image/video dimensions
+- **Format**: File extension
+- **Hash**: Unique identifier (truncated for display)
+- **Keep/Delete**: Shows which files will be kept or deleted
 
-4. **Review Results**: View grouped duplicates in the results table
+### Step 5: Delete Safely
 
-5. **Delete Duplicates**:
-   - **Delete All But One**: Keep only one copy per duplicate group
-   - **Keep Best Quality**: Keep highest resolution/quality version
-   - All deleted files are automatically backed up to `./backups/`
+**Delete All But One per Group**  
+Keeps one file from each duplicate group, backs up and deletes the rest.
 
-## Supported Formats
+**Keep Best Quality per Group**  
+Keeps the largest file (usually highest quality) from each group, deletes the rest.
+
+Both options:
+1. Create a timestamped backup ZIP in `./backups/`
+2. Send files to Recycle Bin (or permanently delete if configured)
+3. Show confirmation with backup location
+
+---
+
+## 🎨 Supported File Formats
 
 ### Images
-- JPEG/JPG, PNG, GIF, BMP, TIFF, WEBP, HEIC/HEIF
+`.jpg` `.jpeg` `.png` `.gif` `.bmp` `.tiff` `.webp` `.heic` `.heif`
 
 ### Videos
-- MP4, AVI, MOV, MKV, WMV, FLV, WEBM, M4V
+`.mp4` `.avi` `.mov` `.mkv` `.wmv` `.flv` `.webm` `.m4v`
 
-## Configuration
+---
 
-Settings are stored in `config.json`:
+## ⚙️ How It Works
+
+### Image Comparison
+Uses **perceptual hashing** with four different algorithms:
+- **aHash** (Average Hash): Compares average color values
+- **dHash** (Difference Hash): Detects edges and gradients
+- **pHash** (Perceptual Hash): Frequency-domain analysis via DCT
+- **wHash** (Wavelet Hash): Wavelet transform for detail detection
+
+Images are considered similar if their combined hash distance is below the threshold. This catches resized, compressed, or slightly edited versions of the same image.
+
+### Video Comparison
+Extracts **10 evenly-spaced frames** from each video:
+1. Converts frames to grayscale
+2. Resizes to 16×16 for consistent comparison
+3. Hashes each frame
+4. Compares frame sequences between videos
+
+Videos match if frame sequences are similar AND durations are within 5%.
+
+### Exact Matching
+Uses **SHA256 hashing** of entire file content. Two files with the same hash are 100% identical byte-for-byte.
+
+---
+
+## 🛠️ Configuration
+
+Settings are saved in `config.json` (auto-created on first run):
 
 ```json
 {
@@ -131,91 +160,108 @@ Settings are stored in `config.json`:
 }
 ```
 
-## Advanced Features
+**Options:**
+- `similarity_threshold`: 50-100, higher = stricter matching
+- `thread_count`: Number of CPU threads to use
+- `max_memory_mb`: RAM limit in megabytes
+- `backup_enabled`: Create backups before deletion (recommended: true)
+- `backup_directory`: Where to store backup ZIP files
+- `use_trash`: Send files to Recycle Bin instead of permanent deletion
 
-### Perceptual Hashing
+---
 
-Images are compared using multiple perceptual hash algorithms:
-- Average Hash (aHash)
-- Difference Hash (dHash)
-- Perceptual Hash (pHash)
-- Wavelet Hash (wHash)
+## 💡 Performance Tips
 
-### Video Comparison
+- **Large Libraries**: Scan one folder at a time rather than your entire drive
+- **Speed vs Accuracy**: Disable "Similar images" and "Similar videos" for faster exact-match-only scans
+- **Memory Issues**: Lower the RAM limit if you experience slowdowns or crashes
+- **CPU Usage**: Reduce thread count if your PC becomes unresponsive during scans
 
-Videos are analyzed using:
-- Frame sampling and comparison
-- Duration and resolution matching
-- Codec and bitrate analysis
+---
 
-### Background Processing
+## 🔧 Troubleshooting
 
-Click "Run in Background" to minimize the application to system tray while scanning continues.
+### "Scan is slow"
+- Increase CPU thread count in Performance settings
+- Disable similarity detection (use exact match only)
+- Scan smaller directories
 
-## Safety
+### "High memory usage"
+- Lower the RAM limit slider in Performance settings
+- Close other applications before scanning
+- Scan fewer folders at once
 
-- All deletions create automatic backups
-- Backups are timestamped ZIP archives in `./backups/`
-- Original files can be restored from backups
-- Send to trash option (recoverable deletion)
-- Backups are created BEFORE any files are deleted
+### "Results seem wrong"
+- Increase similarity threshold (90-95% recommended)
+- Enable only "Exact duplicates" to verify hash-based matching first
+- Check file extensions match your expectations
 
-## Performance Tips
-
-- Adjust thread count based on CPU cores (auto-detected)
-- Set RAM limit based on available memory (shown in UI)
-- Use exact matching first for faster results
-- Enable similarity detection only when needed
-- Scan smaller directories for quicker results
-
-## Troubleshooting
-
-### High Memory Usage
-
-Reduce RAM limit in Performance settings or scan smaller directories.
-
-### Slow Scanning
-
-Increase thread count or disable similarity detection features.
-
-### Missing Dependencies (Source Install)
-
-Ensure all requirements are installed:
+### "Application won't start" (source install)
 ```bash
 pip install -r requirements.txt --upgrade
+python main.py
 ```
 
-## Building a Release Package
+---
 
-To create a distributable ZIP package:
+## 📦 Building from Source
 
-1. Build the executable (see Option 3 above)
-2. The executable will be in `dist/DuplicateFileFinder.exe`
-3. Create a release ZIP containing:
-   - `DuplicateFileFinder.exe`
-   - `README.md`
-   - `LICENSE`
-4. Upload to GitHub Releases
+To create your own standalone executable:
 
-## System Requirements
+```bash
+# Install build dependencies
+pip install -r requirements.txt
+pip install pyinstaller
 
-- **OS**: Windows 10/11, Linux, macOS
-- **RAM**: 512 MB minimum, 2 GB recommended
-- **CPU**: Dual-core or better
-- **Disk Space**: 100 MB for application + space for backups
+# Windows
+build.bat
 
-## License
+# Linux/Mac
+chmod +x build.sh
+./build.sh
+```
 
-MIT License - See LICENSE file for details
+Executable will be in `dist/DuplicateFileFinder.exe` (or platform equivalent).
 
-## Contributing
+---
 
-Contributions are welcome! Please open an issue or submit a pull request.
+## 📊 System Requirements
 
-## Author
+**Minimum:**
+- OS: Windows 10/11, Linux (Ubuntu 20.04+), macOS 10.15+
+- RAM: 512 MB
+- CPU: Dual-core processor
+- Disk: 100 MB for app + space for backups
 
-Created by Fizzolas
+**Recommended:**
+- RAM: 2 GB or more
+- CPU: Quad-core or better
+- SSD for faster file scanning
 
-## Support
+---
 
-For issues, questions, or feature requests, please open an issue on GitHub.
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request with a clear description
+
+---
+
+## 🐛 Issues & Support
+
+Found a bug or have a feature request? [Open an issue](https://github.com/Fizzolas/duplicate-file-finder/issues).
+
+---
+
+## 👤 Author
+
+Created by **Fizzolas**  
+GitHub: [@Fizzolas](https://github.com/Fizzolas)
