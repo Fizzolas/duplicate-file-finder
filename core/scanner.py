@@ -57,25 +57,26 @@ class DuplicateScanner:
         
         duplicate_groups = []
         thread_count = self.options.get('thread_count', 4)
+        total_files = len(self.files)
         
         # Step 1: Hash all files if exact match is enabled
         if self.options.get('exact_match', True):
-            self._hash_files(thread_count)
+            self._hash_files(thread_count, total_files)
             duplicate_groups.extend(self._find_exact_duplicates())
         
         # Step 2: Analyze images for perceptual similarity
         if self.options.get('similar_images', False):
-            self._analyze_images(thread_count)
+            self._analyze_images(thread_count, total_files)
             duplicate_groups.extend(self._find_similar_images())
         
         # Step 3: Analyze videos for content similarity
         if self.options.get('similar_videos', False):
-            self._analyze_videos(thread_count)
+            self._analyze_videos(thread_count, total_files)
             duplicate_groups.extend(self._find_similar_videos())
         
         return self._merge_duplicate_groups(duplicate_groups)
     
-    def _hash_files(self, thread_count: int):
+    def _hash_files(self, thread_count: int, total_files: int):
         """Calculate file hashes using multiple threads."""
         with ThreadPoolExecutor(max_workers=thread_count) as executor:
             futures = {executor.submit(self._hash_file, f): f for f in self.files}
@@ -94,8 +95,8 @@ class DuplicateScanner:
                     pass
                 
                 if self.progress_callback:
-                    progress = int((i + 1) / len(self.files) * 33)
-                    self.progress_callback(progress, file_path)
+                    progress = int((i + 1) / total_files * 33)
+                    self.progress_callback(progress, file_path, i + 1, total_files)
     
     def _hash_file(self, file_path: str) -> Optional[str]:
         """Calculate SHA256 hash of a file."""
@@ -104,7 +105,7 @@ class DuplicateScanner:
         except Exception:
             return None
     
-    def _analyze_images(self, thread_count: int):
+    def _analyze_images(self, thread_count: int, total_files: int):
         """Analyze images for perceptual hashes."""
         image_files = [f for f in self.files if Path(f).suffix.lower() in self.SUPPORTED_IMAGE_FORMATS]
         
@@ -126,7 +127,7 @@ class DuplicateScanner:
                 
                 if self.progress_callback:
                     progress = 33 + int((i + 1) / len(image_files) * 33)
-                    self.progress_callback(progress, file_path)
+                    self.progress_callback(progress, file_path, i + 1, len(image_files))
     
     def _analyze_image(self, file_path: str) -> Optional[Dict]:
         """Analyze a single image."""
@@ -135,7 +136,7 @@ class DuplicateScanner:
         except Exception:
             return None
     
-    def _analyze_videos(self, thread_count: int):
+    def _analyze_videos(self, thread_count: int, total_files: int):
         """Analyze videos for signatures."""
         video_files = [f for f in self.files if Path(f).suffix.lower() in self.SUPPORTED_VIDEO_FORMATS]
         
@@ -157,7 +158,7 @@ class DuplicateScanner:
                 
                 if self.progress_callback:
                     progress = 66 + int((i + 1) / len(video_files) * 34)
-                    self.progress_callback(progress, file_path)
+                    self.progress_callback(progress, file_path, i + 1, len(video_files))
     
     def _analyze_video(self, file_path: str) -> Optional[Dict]:
         """Analyze a single video."""

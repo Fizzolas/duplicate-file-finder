@@ -28,6 +28,12 @@ QWidget {
     color: #a1a1aa;
 }
 
+#etaLabel {
+    font-size: 9pt;
+    color: #22c55e;
+    font-weight: 600;
+}
+
 QPushButton {
     background-color: #27272f;
     color: #e5e5e5;
@@ -77,6 +83,19 @@ QPushButton#applyButton:hover {
     background-color: #2563eb;
 }
 
+QPushButton#showInFolderButton {
+    background-color: #374151;
+    border: 1px solid #4b5563;
+    padding: 4px 12px;
+    font-size: 9pt;
+    min-width: 100px;
+}
+
+QPushButton#showInFolderButton:hover {
+    background-color: #4b5563;
+    border: 1px solid #6b7280;
+}
+
 QGroupBox {
     border: 1px solid #27272f;
     border-radius: 6px;
@@ -124,6 +143,10 @@ QTableWidget::item {
 
 QTableWidget::item:selected {
     background-color: #1d4ed8;
+}
+
+QTableWidget::item:hover {
+    background-color: #1f2937;
 }
 
 QHeaderView::section {
